@@ -51,12 +51,12 @@ public class ElasticSegmentedControl: UIControl {
     
     // MARK: - Private Properties
     
-    private let containerView = ContainerView()
-    private let selectedContainerView = ContainerView()
+    let containerView = ContainerView()
+    let selectedContainerView = ContainerView()
     
     let thumbView = UIView()
     
-    private var initialX: CGFloat = 0
+    var initialX: CGFloat = 0
     
     // MARK: - Constructors
     
@@ -95,6 +95,9 @@ public class ElasticSegmentedControl: UIControl {
         addGestureRecognizer(panGesture)
         
         addObserver(self, forKeyPath: "thumbView.frame", options: .New, context: nil)
+        
+        stackViews([containerView], axis: .Horizontal)
+        stackViews([selectedContainerView], axis: .Horizontal)
     }
     
     // MARK: - Destructor
@@ -168,27 +171,6 @@ public extension ElasticSegmentedControl {
         
         let width = bounds.width / CGFloat(containerView.labels.count) - thumbInset * 2.0
         thumbView.frame = CGRect(x: thumbInset + CGFloat(selectedIndex) * (width + thumbInset * 2.0), y: thumbInset, width: width, height: bounds.height - thumbInset * 2.0)
-        
-        (containerView.frame, selectedContainerView.frame) = (bounds, bounds)
-        
-        let titleLabelMaxWidth = width
-        let titleLabelMaxHeight = bounds.height - thumbInset * 2.0
-        
-        zip(containerView.labels, selectedContainerView.labels).forEach { label, selectedLabel in
-            let labels = containerView.labels
-            let index = labels.indexOf(label)!
-            
-            var size = label.sizeThatFits(CGSize(width: titleLabelMaxWidth, height: titleLabelMaxHeight))
-            size.width = min(size.width, titleLabelMaxWidth)
-            
-            var origin = CGPoint()
-            origin.x = floor((bounds.width / CGFloat(labels.count)) * CGFloat(index) + (bounds.width / CGFloat(labels.count) - size.width) / 2.0)
-            origin.y = floor((bounds.height - size.height) / 2.0)
-            
-            let frame = CGRect(origin: origin, size: size)
-            label.frame = frame
-            selectedLabel.frame = frame
-        }
     }
     
 }
@@ -214,7 +196,7 @@ extension ElasticSegmentedControl: UIGestureRecognizerDelegate {
 }
 
 // MARK: - ContainerView
-private class ContainerView: UIView {
+class ContainerView: UIView {
     
     var labels = [UILabel]()
     
@@ -227,6 +209,7 @@ private class ContainerView: UIView {
     }
     
     var titles: [String] {
+        get { return labels.flatMap { $0.text } }
         set {
             labels.forEach { $0.removeFromSuperview() }
             labels = newValue.map { title in
@@ -235,12 +218,42 @@ private class ContainerView: UIView {
                 label.textColor = textColor
                 label.font = font
                 label.textAlignment = .Center
-                label.lineBreakMode = .ByTruncatingTail
                 addSubview(label)
                 return label
             }
+//            stackViews(labels, axis: .Horizontal)
         }
-        get { return labels.flatMap { $0.text } }
+    }
+    
+}
+
+extension UIView {
+    
+    enum Axis {
+        case Horizontal, Vertical
+    }
+    
+    func stackViews(views: [UIView], axis: Axis) {
+        NSLayoutConstraint.deactivateConstraints(self.constraints)
+        
+        var dict = [String: UIView]()
+        views.enumerate().forEach { dict["view\($0)"] = $1 }
+        let keys = dict.keys.sort(<).map { "[" + $0 + "]" }
+        
+        switch axis {
+        case .Horizontal:
+            NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat("H:|\(keys.joinWithSeparator(""))|", options: [], metrics: nil, views: dict))
+            keys.forEach {
+                NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat("V:|\($0)|", options: [], metrics: nil, views: dict))
+            }
+        case .Vertical:
+            keys.forEach {
+                NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat("H:|\($0)|", options: [], metrics: nil, views: dict))
+            }
+            NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat("V:|\(keys.joinWithSeparator(""))|", options: [], metrics: nil, views: dict))
+        }
+        
+        print(constraints)
     }
     
 }
