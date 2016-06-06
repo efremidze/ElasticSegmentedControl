@@ -221,6 +221,7 @@ class ContainerView: UIView {
                 addSubview(label)
                 return label
             }
+            NSLayoutConstraint.deactivateConstraints(self.constraints)
             stackViews(labels, axis: .Horizontal)
         }
     }
@@ -239,8 +240,6 @@ extension UIView {
     
     func stackViews(views: [UIView], axis: Axis) {
         views.forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
-        
-        NSLayoutConstraint.deactivateConstraints(self.constraints)
         
         switch axis {
         case .Horizontal:
