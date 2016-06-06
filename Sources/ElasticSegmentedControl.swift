@@ -221,7 +221,7 @@ class ContainerView: UIView {
                 addSubview(label)
                 return label
             }
-//            stackViews(labels, axis: .Horizontal)
+            stackViews(labels, axis: .Horizontal)
         }
     }
     
@@ -233,27 +233,55 @@ extension UIView {
         case Horizontal, Vertical
     }
     
+    enum Type {
+        case Equal, Stack
+    }
+    
     func stackViews(views: [UIView], axis: Axis) {
-        NSLayoutConstraint.deactivateConstraints(self.constraints)
+        views.forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
         
-        var dict = [String: UIView]()
-        views.enumerate().forEach { dict["view\($0)"] = $1 }
-        let keys = dict.keys.sort(<).map { "[" + $0 + "]" }
+        NSLayoutConstraint.deactivateConstraints(self.constraints)
         
         switch axis {
         case .Horizontal:
-            NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat("H:|\(keys.joinWithSeparator(""))|", options: [], metrics: nil, views: dict))
-            keys.forEach {
-                NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat("V:|\($0)|", options: [], metrics: nil, views: dict))
-            }
+            addConstraints(views, axis: .Horizontal, type: .Stack)
+            addConstraints(views, axis: .Vertical, type: .Equal)
         case .Vertical:
-            keys.forEach {
-                NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat("H:|\($0)|", options: [], metrics: nil, views: dict))
-            }
-            NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat("V:|\(keys.joinWithSeparator(""))|", options: [], metrics: nil, views: dict))
+            addConstraints(views, axis: .Horizontal, type: .Equal)
+            addConstraints(views, axis: .Vertical, type: .Stack)
         }
-        
-        print(constraints)
+    }
+    
+    func addConstraints(views: [UIView], axis: Axis, type: Type) {
+        let dict = views.toDict()
+        var keys = dict.keys.sort(<)
+        let orientation = (axis == .Horizontal ? "H" : "V")
+        switch type {
+        case .Equal:
+            keys.map { "[" + $0 + "]" }.forEach {
+                let format = orientation + ":|" + $0 + "|"
+                print("Equal")
+                print(format)
+                NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat(format, options: [], metrics: nil, views: dict))
+            }
+        case .Stack:
+            keys = keys.enumerate().map { $0 > 0 ? $1 + "(==" + keys[$0 - 1] + ")" : $1 }
+            keys = keys.map { "[" + $0 + "]" }
+            let format = orientation + ":|" + keys.joinWithSeparator("") + "|"
+            print("Stack")
+            print(format)
+            NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat(format, options: [], metrics: nil, views: dict))
+        }
+    }
+    
+}
+
+extension Array {
+    
+    func toDict() -> [String: Element] {
+        var dict = [String: Element]()
+        enumerate().forEach { dict["view\($0)"] = $1 }
+        return dict
     }
     
 }
