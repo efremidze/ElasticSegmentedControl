@@ -12,13 +12,7 @@ public class ElasticSegmentedControl: UIControl {
     
     public var titles: [String] {
         get { return containerView.titles }
-        set {
-            [containerView, selectedContainerView].forEach {
-                $0.titles = newValue
-                NSLayoutConstraint.deactivateConstraints($0.constraints)
-                $0.stackViews($0.labels, axis: .Horizontal, padding: thumbInset)
-            }
-        }
+        set { [containerView, selectedContainerView].forEach { $0.titles = newValue } }
     }
     
     public var titleColor: UIColor? {
@@ -45,8 +39,11 @@ public class ElasticSegmentedControl: UIControl {
         didSet { thumbView.layer.cornerRadius = thumbCornerRadius ?? ((thumbView.frame.height / 2) - thumbInset) }
     }
     
-    public var thumbInset: CGFloat = 2.0 {
-        didSet { setNeedsLayout() }
+    public var thumbInset: CGFloat = 2 {
+        didSet {
+            [containerView, selectedContainerView].forEach { $0.inset = thumbInset }
+            setNeedsLayout()
+        }
     }
     
     public internal(set) var selectedIndex: Int = 0
@@ -174,11 +171,8 @@ public extension ElasticSegmentedControl {
     override func layoutSubviews() {
         super.layoutSubviews()
         
-        thumbView.frame = self.bounds
-        thumbView.frame.size.width = bounds.width / CGFloat(titles.count)
-        
         layer.cornerRadius = cornerRadius ?? frame.height / 2
-        thumbView.layer.cornerRadius = thumbCornerRadius ?? ((thumbView.frame.height / 2) - thumbInset)
+        thumbView.layer.cornerRadius = thumbCornerRadius ?? ((frame.height / 2) - thumbInset)
     }
     
 }
@@ -229,18 +223,23 @@ class ContainerView: UIView {
                 addSubview(label)
                 return label
             }
+            removeConstraints()
+            stackViews(labels, axis: .Horizontal, padding: inset)
         }
     }
     
+    var inset: CGFloat = 2
+    
 }
 
+// MARK: - UIView
 extension UIView {
     
     enum Axis {
         case Horizontal, Vertical
     }
     
-    enum Type {
+    private enum Type {
         case Equal, Stack
     }
     
@@ -257,36 +256,30 @@ extension UIView {
         }
     }
     
-    func addConstraints(views: [UIView], axis: Axis, type: Type, padding: CGFloat) {
-        let dict = views.toDict()
+    private func addConstraints(views: [UIView], axis: Axis, type: Type, padding: CGFloat) {
+        var dict = [String: UIView]()
+        views.enumerate().forEach { dict["view\($0)"] = $1 }
         var keys = dict.keys.sort(<)
-        let orientation = (axis == .Horizontal ? "H" : "V")
         switch type {
         case .Equal:
             keys.map { "[" + $0 + "]" }.forEach {
-                let format = "\(orientation):|-\(padding)-\($0)-\(padding)-|"
-                print("Equal")
-                print(format)
-                NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat(format, options: [], metrics: nil, views: dict))
+                addConstraints(dict, key: $0, axis: axis, padding: padding)
             }
         case .Stack:
             keys = keys.enumerate().map { $0 > 0 ? $1 + "(==" + keys[$0 - 1] + ")" : $1 }
             keys = keys.map { "[" + $0 + "]" }
-            let format = "\(orientation):|-\(padding)-\(keys.joinWithSeparator(""))-\(padding)-|"
-            print("Stack")
-            print(format)
-            NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat(format, options: [], metrics: nil, views: dict))
+            addConstraints(dict, key: keys.joinWithSeparator(""), axis: axis, padding: padding)
         }
     }
     
-}
-
-extension Array {
+    private func addConstraints(views: [String: UIView], key: String, axis: Axis, padding: CGFloat) {
+        let orientation = (axis == .Horizontal ? "H" : "V")
+        let format = "\(orientation):|-\(padding)-\(key)-\(padding)-|"
+        NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat(format, options: [], metrics: nil, views: views))
+    }
     
-    func toDict() -> [String: Element] {
-        var dict = [String: Element]()
-        enumerate().forEach { dict["view\($0)"] = $1 }
-        return dict
+    func removeConstraints() {
+        NSLayoutConstraint.deactivateConstraints(constraints)
     }
     
 }
