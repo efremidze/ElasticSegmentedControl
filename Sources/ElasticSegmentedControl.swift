@@ -12,7 +12,13 @@ public class ElasticSegmentedControl: UIControl {
     
     public var titles: [String] {
         get { return containerView.titles }
-        set { [containerView, selectedContainerView].forEach { $0.titles = newValue } }
+        set {
+            [containerView, selectedContainerView].forEach {
+                $0.titles = newValue
+                NSLayoutConstraint.deactivateConstraints($0.constraints)
+                $0.stackViews($0.labels, axis: .Horizontal, padding: thumbInset)
+            }
+        }
     }
     
     public var titleColor: UIColor? {
@@ -36,7 +42,7 @@ public class ElasticSegmentedControl: UIControl {
     }
     
     public var thumbCornerRadius: CGFloat? {
-        didSet { thumbView.layer.cornerRadius = thumbCornerRadius ?? thumbView.frame.height / 2 }
+        didSet { thumbView.layer.cornerRadius = thumbCornerRadius ?? ((thumbView.frame.height / 2) - thumbInset) }
     }
     
     public var thumbInset: CGFloat = 2.0 {
@@ -96,8 +102,8 @@ public class ElasticSegmentedControl: UIControl {
         
         addObserver(self, forKeyPath: "thumbView.frame", options: .New, context: nil)
         
-        stackViews([containerView], axis: .Horizontal)
-        stackViews([selectedContainerView], axis: .Horizontal)
+        stackViews([containerView], axis: .Horizontal, padding: 0)
+        stackViews([selectedContainerView], axis: .Horizontal, padding: 0)
     }
     
     // MARK: - Destructor
@@ -135,6 +141,8 @@ extension ElasticSegmentedControl {
     func setSelectedIndex(selectedIndex: Int, animated: Bool) {
         guard 0..<titles.count ~= selectedIndex else { return }
         
+        let label = containerView.labels[selectedIndex]
+        
         // Reset switch on half pan gestures
         var catchHalfSwitch = false
         if self.selectedIndex == selectedIndex {
@@ -148,12 +156,12 @@ extension ElasticSegmentedControl {
             }
             userInteractionEnabled = false
             UIView.animateWithDuration(animationDuration, delay: 0.0, usingSpringWithDamping: animationSpringDamping, initialSpringVelocity: animationInitialSpringVelocity, options: [.BeginFromCurrentState, .CurveEaseOut], animations: {
-                self.layoutSubviews()
+                self.thumbView.frame = label.frame
             }, completion: { _ in
                 self.userInteractionEnabled = true
             })
         } else {
-            layoutSubviews()
+            thumbView.frame = label.frame
             sendActionsForControlEvents(.ValueChanged)
         }
     }
@@ -166,11 +174,11 @@ public extension ElasticSegmentedControl {
     override func layoutSubviews() {
         super.layoutSubviews()
         
-        layer.cornerRadius = cornerRadius ?? frame.height / 2
-        thumbView.layer.cornerRadius = (thumbCornerRadius ?? thumbView.frame.height / 2)
+        thumbView.frame = self.bounds
+        thumbView.frame.size.width = bounds.width / CGFloat(titles.count)
         
-        let width = bounds.width / CGFloat(containerView.labels.count) - thumbInset * 2.0
-        thumbView.frame = CGRect(x: thumbInset + CGFloat(selectedIndex) * (width + thumbInset * 2.0), y: thumbInset, width: width, height: bounds.height - thumbInset * 2.0)
+        layer.cornerRadius = cornerRadius ?? frame.height / 2
+        thumbView.layer.cornerRadius = thumbCornerRadius ?? ((thumbView.frame.height / 2) - thumbInset)
     }
     
 }
@@ -221,8 +229,6 @@ class ContainerView: UIView {
                 addSubview(label)
                 return label
             }
-            NSLayoutConstraint.deactivateConstraints(self.constraints)
-            stackViews(labels, axis: .Horizontal)
         }
     }
     
@@ -238,27 +244,27 @@ extension UIView {
         case Equal, Stack
     }
     
-    func stackViews(views: [UIView], axis: Axis) {
+    func stackViews(views: [UIView], axis: Axis, padding: CGFloat) {
         views.forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
         
         switch axis {
         case .Horizontal:
-            addConstraints(views, axis: .Horizontal, type: .Stack)
-            addConstraints(views, axis: .Vertical, type: .Equal)
+            addConstraints(views, axis: .Horizontal, type: .Stack, padding: padding)
+            addConstraints(views, axis: .Vertical, type: .Equal, padding: padding)
         case .Vertical:
-            addConstraints(views, axis: .Horizontal, type: .Equal)
-            addConstraints(views, axis: .Vertical, type: .Stack)
+            addConstraints(views, axis: .Horizontal, type: .Equal, padding: padding)
+            addConstraints(views, axis: .Vertical, type: .Stack, padding: padding)
         }
     }
     
-    func addConstraints(views: [UIView], axis: Axis, type: Type) {
+    func addConstraints(views: [UIView], axis: Axis, type: Type, padding: CGFloat) {
         let dict = views.toDict()
         var keys = dict.keys.sort(<)
         let orientation = (axis == .Horizontal ? "H" : "V")
         switch type {
         case .Equal:
             keys.map { "[" + $0 + "]" }.forEach {
-                let format = orientation + ":|" + $0 + "|"
+                let format = "\(orientation):|-\(padding)-\($0)-\(padding)-|"
                 print("Equal")
                 print(format)
                 NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat(format, options: [], metrics: nil, views: dict))
@@ -266,7 +272,7 @@ extension UIView {
         case .Stack:
             keys = keys.enumerate().map { $0 > 0 ? $1 + "(==" + keys[$0 - 1] + ")" : $1 }
             keys = keys.map { "[" + $0 + "]" }
-            let format = orientation + ":|" + keys.joinWithSeparator("") + "|"
+            let format = "\(orientation):|-\(padding)-\(keys.joinWithSeparator(""))-\(padding)-|"
             print("Stack")
             print(format)
             NSLayoutConstraint.activateConstraints(NSLayoutConstraint.constraintsWithVisualFormat(format, options: [], metrics: nil, views: dict))
