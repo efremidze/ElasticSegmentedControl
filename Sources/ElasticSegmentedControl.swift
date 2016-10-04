@@ -40,10 +40,7 @@ public class ElasticSegmentedControl: UIControl {
     }
     
     public var thumbInset: CGFloat = 2 {
-        didSet {
-            [containerView, selectedContainerView].forEach { $0.inset = thumbInset }
-            setNeedsLayout()
-        }
+        didSet { setNeedsLayout() }
     }
     
     public internal(set) var selectedIndex: Int = 0
@@ -173,6 +170,11 @@ public extension ElasticSegmentedControl {
         
         layer.cornerRadius = cornerRadius ?? frame.height / 2
         thumbView.layer.cornerRadius = thumbCornerRadius ?? ((frame.height / 2) - thumbInset)
+        
+        [containerView, selectedContainerView].forEach {
+            $0.removeConstraints()
+            $0.stackViews($0.labels, axis: .Horizontal, padding: thumbInset)
+        }
     }
     
 }
@@ -223,12 +225,8 @@ class ContainerView: UIView {
                 addSubview(label)
                 return label
             }
-            removeConstraints()
-            stackViews(labels, axis: .Horizontal, padding: inset)
         }
     }
-    
-    var inset: CGFloat = 2
     
 }
 
